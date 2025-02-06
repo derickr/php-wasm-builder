@@ -65,6 +65,7 @@ void EMSCRIPTEN_KEEPALIVE phpw_run(char *code)
 {
 	setenv("USE_ZEND_ALLOC", "0", 1);
 	php_embed_init(0, NULL);
+	PG(during_request_startup) = 0;
 
 	zend_try
 	{
