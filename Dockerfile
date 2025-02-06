@@ -1,6 +1,7 @@
 FROM debian:bookworm as bookworm
 ARG PHP_VERSION=8.4.3
 ARG ONIGURUMA_VERSION=6.9.10
+ARG LIBXML_VERSION=2.13.5
 WORKDIR /local/src
 
 # Copy SHIM source to /local/src
@@ -54,11 +55,20 @@ RUN git clone https://github.com/kkos/oniguruma --branch v$ONIGURUMA_VERSION  --
 ENV ONIG_LIBS="-L/local/install"
 ENV ONIG_CFLAGS="-I/local/install/include"
 
+# Compile libxml and related extensions, and set its env vars
+RUN git clone https://gitlab.gnome.org/GNOME/libxml2.git libxml2 --branch v$LIBXML_VERSION  --single-branch --depth 1 && \
+	cd libxml2 && \
+	emconfigure ./autogen.sh --prefix=/local/install --enable-static --disable-shared --with-python=no --with-threads=no && \
+	emmake make -j`nproc` && \
+	emmake make install
+ENV LIBXML_LIBS="-L/local/install"
+ENV LIBXML_CFLAGS="-I/local/install/include/libxml2"
+
 # Configure PHP
 RUN cd php-src && \
 	emconfigure ./configure --enable-embed=static \
 	--disable-all --without-pcre-jit --disable-fiber-asm --disable-cgi --disable-cli --disable-phpdbg \
-#	--with-libxml --enable-simplexml --enable-xml --enable-xmlreader --enable-dom \
+	--with-libxml --enable-simplexml --enable-xml --enable-xmlreader --enable-dom \
 	--enable-mbstring \
 	--enable-calendar --enable-ctype
 
@@ -82,7 +92,7 @@ RUN mkdir /build && \
 	-s ASSERTIONS=0 -s ERROR_ON_UNDEFINED_SYMBOLS=0 -s MODULARIZE=1 -s INVOKE_RUN=0 -s LZ4=1 -s EXPORT_ES6=1 \
 	-s EXPORT_NAME=createPhpModule \
 	phpw.o php-src/.libs/libphp.a \
-#	../install/lib/libxml2.a \
+	/local/install/lib/libxml2.a \
 	/local/install/lib/libonig.a \
 	php-src/.libs/libphp.a
 
