@@ -1,5 +1,6 @@
 FROM debian:bookworm as bookworm
 ARG PHP_VERSION=8.4.3
+ARG ONIGURUMA_VERSION=6.9.10
 WORKDIR /local/src
 
 # Copy SHIM source to /local/src
@@ -40,12 +41,25 @@ ENV PATH=/local/src/emsdk:/local/src/emsdk/upstream/emscripten:/usr/local/bin:/u
 ENV EMSDK=/local/src/emsdk
 ENV EMSDK_NODE=/local/src/emsdk/node/20.18.0_64bit/bin/node
 
+# Create install directory
+RUN mkdir -p /local/install
+
+# Compile mbstring regex library, and set its env vars
+RUN git clone https://github.com/kkos/oniguruma --branch v$ONIGURUMA_VERSION  --single-branch --depth 1 && \
+	cd oniguruma && \
+	autoreconf -vfi && \
+	emconfigure ./configure --prefix=/local/install --disable-shared && \
+	emmake make && \
+	emmake make install
+ENV ONIG_LIBS="-L/local/install"
+ENV ONIG_CFLAGS="-I/local/install/include"
+
 # Configure PHP
 RUN cd php-src && \
 	emconfigure ./configure --enable-embed=static \
 	--disable-all --without-pcre-jit --disable-fiber-asm --disable-cgi --disable-cli --disable-phpdbg \
 #	--with-libxml --enable-simplexml --enable-xml --enable-xmlreader --enable-dom \
-#	--enable-mbstring \
+	--enable-mbstring \
 	--enable-calendar --enable-ctype
 
 # Compile WASM shim
@@ -68,7 +82,8 @@ RUN mkdir /build && \
 	-s ASSERTIONS=0 -s ERROR_ON_UNDEFINED_SYMBOLS=0 -s MODULARIZE=1 -s INVOKE_RUN=0 -s LZ4=1 -s EXPORT_ES6=1 \
 	-s EXPORT_NAME=createPhpModule \
 	phpw.o php-src/.libs/libphp.a \
-#	../install/lib/libxml2.a ../install/lib/libonig.a \
+#	../install/lib/libxml2.a \
+	/local/install/lib/libonig.a \
 	php-src/.libs/libphp.a
 
 # Save file
