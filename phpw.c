@@ -28,7 +28,19 @@
 #include "zend_exceptions.h"
 #include "zend_closures.h"
 
-int main() {
+int main(int argc, char **argv)
+{
+	php_embed_init(0, NULL);
+
+	zend_file_handle file_handle;
+	zend_stream_init_filename(&file_handle, argv[1]);
+
+	if (php_execute_script(&file_handle) == false) {
+		php_printf("Failed to execute PHP script.\n");
+		return 0;
+	}
+
+	php_embed_shutdown();
 	return 0;
 }
 

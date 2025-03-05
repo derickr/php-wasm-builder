@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<books>
+ <book>
+  <title>PHP Basics</title>
+  <author>Jim Smith</author>
+  <author>Jane Smith</author>
+ </book>
+ <book>
+  <title>PHP Secrets</title>
+  <author>Jenny Smythe</author>
+ </book>
+ <book>
+  <title>XML basics</title>
+  <author>Joe Black</author>
+ </book>
+</books>
