@@ -1,4 +1,4 @@
-FROM debian:bookworm as bookworm
+FROM debian:bookworm AS bookworm
 ARG PHP_VERSION=8.4.4
 ARG ONIGURUMA_VERSION=6.9.10
 ARG LIBXML_VERSION=2.13.5
