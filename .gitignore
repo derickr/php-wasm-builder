@@ -1,2 +1,5 @@
 build/*.wasm
 build/*.js
+build/*.mjs
+builds/
+build/
