@@ -1,4 +1,4 @@
-FROM debian:bookworm as bookworm
+FROM debian:bookworm AS bookworm
 ARG PHP_VERSION=8.4.4
 ARG ONIGURUMA_VERSION=6.9.10
 ARG LIBXML_VERSION=2.13.5
@@ -35,6 +35,8 @@ RUN \
 RUN \
 	git clone https://github.com/php/php-src.git php-src --branch php-$PHP_VERSION --single-branch --depth 1 && \
 	cd php-src && \
+	rm -f /local/src/php-src/main/php_glob.c && \
+	touch /local/src/php-src/main/php_glob.c && \
 	./buildconf --force
 
 # Setting ENV vars
