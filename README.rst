@@ -17,6 +17,21 @@ argument::
 
 	docker buildx bake --set default.args.PHP_VERSION=8.3.16
 
+Options
+-------
+
+The follow options are available for the baker:
+
+PHP_VERSION
+	Configures the PHP version to build.
+
+LIBXML_VERSION
+	The LibXML version to download and build.
+
+ONIGURUMA_VERSION
+	The Oniguruma library (used for regular expressions with mbstring) version
+	to download and build.
+
 Supported Extensions
 --------------------
 
