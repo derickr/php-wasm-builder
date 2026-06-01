@@ -2,6 +2,7 @@ FROM debian:bookworm AS bookworm
 ARG PHP_VERSION=8.4.4
 ARG ONIGURUMA_VERSION=6.9.10
 ARG LIBXML_VERSION=2.13.5
+ARG ICU_VERSION=74-2
 WORKDIR /local/src
 
 # Copy SHIM source to /local/src
@@ -64,12 +65,29 @@ RUN git clone https://gitlab.gnome.org/GNOME/libxml2.git libxml2 --branch v$LIBX
 ENV LIBXML_LIBS="-L/local/install"
 ENV LIBXML_CFLAGS="-I/local/install/include/libxml2"
 
+# phase 1: build .dat files on host
+RUN git clone https://github.com/unicode-org/icu.git icu --branch release-$ICU_VERSION  --single-branch --depth 1 && \
+	mkdir -p /local/src/icu-host && \
+	cd /local/src/icu-host && \
+	/local/src/icu/icu4c/source/runConfigureICU Linux --enable-static --disable-shared && \
+	make -j`nproc`
+
+# phase 2: build for wasm32
+RUN mkdir -p /local/src/icu-build && \
+	cd /local/src/icu-build && \
+	emconfigure /local/src/icu/icu4c/source/configure --prefix=/local/install --enable-static --disable-shared --disable-extras --disable-tests --disable-samples --with-cross-build=/local/src/icu-host --with-data-packaging=static && \
+	emmake make -j`nproc` && \
+	emmake make install
+ENV ICU_LIBS="-L/local/install/lib -licui18n -licuio -licuuc -licudata"
+ENV ICU_CFLAGS="-I/local/install/include"
+
 # Configure PHP
 RUN cd php-src && \
 	emconfigure ./configure --host=$(emcc -dumpmachine) --enable-embed=static \
 	--disable-all --without-pcre-jit --disable-fiber-asm --disable-cgi --disable-cli --disable-phpdbg \
 	--with-libxml --enable-simplexml --enable-xml --enable-xmlreader --enable-xmlwriter --enable-dom \
 	--enable-mbstring \
+	--enable-intl \
 	--enable-calendar --enable-ctype
 
 # Compile WASM shim
@@ -97,6 +115,10 @@ RUN mkdir -p /build && \
 	phpw.o php-src/.libs/libphp.a \
 	/local/install/lib/libxml2.a \
 	/local/install/lib/libonig.a \
+	/local/install/lib/libicui18n.a \
+	/local/install/lib/libicuio.a \
+	/local/install/lib/libicuuc.a \
+	/local/install/lib/libicudata.a \
 	php-src/.libs/libphp.a
 
 RUN mkdir -p /build && \
@@ -112,6 +134,10 @@ RUN mkdir -p /build && \
 	phpw.o php-src/.libs/libphp.a \
 	/local/install/lib/libxml2.a \
 	/local/install/lib/libonig.a \
+	/local/install/lib/libicui18n.a \
+	/local/install/lib/libicuio.a \
+	/local/install/lib/libicuuc.a \
+	/local/install/lib/libicudata.a \
 	php-src/.libs/libphp.a
 
 # Save file
