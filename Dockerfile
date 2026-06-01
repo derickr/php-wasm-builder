@@ -41,7 +41,9 @@ RUN \
 # Setting ENV vars
 ENV PATH=/local/src/emsdk:/local/src/emsdk/upstream/emscripten:/usr/local/bin:/usr/bin
 ENV EMSDK=/local/src/emsdk
-ENV EMSDK_NODE=/local/src/emsdk/node/20.18.0_64bit/bin/node
+ENV EMSDK_NODE=/usr/local/bin/node
+
+RUN ln -sf $(ls -d /local/src/emsdk/node/*/bin/node) /usr/local/bin/node
 
 # Create install directory
 RUN mkdir -p /local/install
@@ -73,9 +75,10 @@ RUN git clone https://github.com/unicode-org/icu.git icu --branch release-$ICU_V
 	make -j`nproc`
 
 # phase 2: build for wasm32
+# emscriptens mmap is unaligned, force stdio read instead
 RUN mkdir -p /local/src/icu-build && \
 	cd /local/src/icu-build && \
-	emconfigure /local/src/icu/icu4c/source/configure --prefix=/local/install --enable-static --disable-shared --disable-extras --disable-tests --disable-samples --with-cross-build=/local/src/icu-host --with-data-packaging=static && \
+	CPPFLAGS="-DU_HAVE_MMAP=0" emconfigure /local/src/icu/icu4c/source/configure --prefix=/local/install --enable-static --disable-shared --disable-extras --disable-tests --disable-samples --with-cross-build=/local/src/icu-host --with-data-packaging=archive && \
 	emmake make -j`nproc` && \
 	emmake make install
 ENV ICU_LIBS="-L/local/install/lib -licui18n -licuio -licuuc -licudata"
@@ -103,6 +106,7 @@ COPY examples examples
 
 # Create PHP-WASM
 RUN mkdir -p /build && \
+	DAT=$(ls /local/install/share/icu/*/icudt*.dat) && \
 	emcc -o /build/php-web.mjs \
 	-O2 --llvm-lto 2 \
 	-s EXPORTED_FUNCTIONS='["_phpw", "_phpw_flush", "_phpw_exec", "_phpw_run", "_chdir", "_setenv", "_php_embed_init", "_php_embed_shutdown", "_zend_eval_string"]' \
@@ -112,6 +116,7 @@ RUN mkdir -p /build && \
 	-s ASSERTIONS=0 -s ERROR_ON_UNDEFINED_SYMBOLS=0 -s MODULARIZE=1 -s INVOKE_RUN=0 -s LZ4=1 -s EXPORT_ES6=1 \
 	-s EXPORT_NAME=createPhpModule \
 	--embed-file examples \
+	--embed-file ${DAT}@/icu/$(basename ${DAT}) \
 	phpw.o php-src/.libs/libphp.a \
 	/local/install/lib/libxml2.a \
 	/local/install/lib/libonig.a \
@@ -122,6 +127,7 @@ RUN mkdir -p /build && \
 	php-src/.libs/libphp.a
 
 RUN mkdir -p /build && \
+	DAT=$(ls /local/install/share/icu/*/icudt*.dat) && \
 	emcc -o /build/php-cli.mjs \
 	-O2 --llvm-lto 2 \
 	-s EXPORTED_FUNCTIONS='["_phpw", "_phpw_flush", "_phpw_exec", "_phpw_run", "_chdir", "_setenv", "_php_embed_init", "_php_embed_shutdown", "_zend_eval_string"]' \
@@ -131,6 +137,7 @@ RUN mkdir -p /build && \
 	-s ASSERTIONS=0 -s ERROR_ON_UNDEFINED_SYMBOLS=0 -s MODULARIZE=1 -s INVOKE_RUN=0 -s LZ4=1 -s EXPORT_ES6=1 \
 	-s EXPORT_NAME=createPhpModule \
 	--embed-file examples \
+	--embed-file ${DAT}@/icu/$(basename ${DAT}) \
 	phpw.o php-src/.libs/libphp.a \
 	/local/install/lib/libxml2.a \
 	/local/install/lib/libonig.a \
