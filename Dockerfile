@@ -2,6 +2,7 @@ FROM debian:bookworm AS bookworm
 ARG PHP_VERSION=8.4.4
 ARG ONIGURUMA_VERSION=6.9.10
 ARG LIBXML_VERSION=2.13.5
+ARG ICU_VERSION=74-2
 WORKDIR /local/src
 
 # Copy SHIM source to /local/src
@@ -40,7 +41,9 @@ RUN \
 # Setting ENV vars
 ENV PATH=/local/src/emsdk:/local/src/emsdk/upstream/emscripten:/usr/local/bin:/usr/bin
 ENV EMSDK=/local/src/emsdk
-ENV EMSDK_NODE=/local/src/emsdk/node/20.18.0_64bit/bin/node
+ENV EMSDK_NODE=/usr/local/bin/node
+
+RUN ln -sf $(ls -d /local/src/emsdk/node/*/bin/node) /usr/local/bin/node
 
 # Create install directory
 RUN mkdir -p /local/install
@@ -64,12 +67,30 @@ RUN git clone https://gitlab.gnome.org/GNOME/libxml2.git libxml2 --branch v$LIBX
 ENV LIBXML_LIBS="-L/local/install"
 ENV LIBXML_CFLAGS="-I/local/install/include/libxml2"
 
+# phase 1: build .dat files on host
+RUN git clone https://github.com/unicode-org/icu.git icu --branch release-$ICU_VERSION  --single-branch --depth 1 && \
+	mkdir -p /local/src/icu-host && \
+	cd /local/src/icu-host && \
+	/local/src/icu/icu4c/source/runConfigureICU Linux --enable-static --disable-shared && \
+	make -j`nproc`
+
+# phase 2: build for wasm32
+# emscriptens mmap is unaligned, force stdio read instead
+RUN mkdir -p /local/src/icu-build && \
+	cd /local/src/icu-build && \
+	CPPFLAGS="-DU_HAVE_MMAP=0" emconfigure /local/src/icu/icu4c/source/configure --prefix=/local/install --enable-static --disable-shared --disable-extras --disable-tests --disable-samples --with-cross-build=/local/src/icu-host --with-data-packaging=archive && \
+	emmake make -j`nproc` && \
+	emmake make install
+ENV ICU_LIBS="-L/local/install/lib -licui18n -licuio -licuuc -licudata"
+ENV ICU_CFLAGS="-I/local/install/include"
+
 # Configure PHP
 RUN cd php-src && \
 	emconfigure ./configure --host=$(emcc -dumpmachine) --enable-embed=static \
 	--disable-all --without-pcre-jit --disable-fiber-asm --disable-cgi --disable-cli --disable-phpdbg \
 	--with-libxml --enable-simplexml --enable-xml --enable-xmlreader --enable-xmlwriter --enable-dom \
 	--enable-mbstring \
+	--enable-intl \
 	--enable-calendar --enable-ctype
 
 # Compile WASM shim
@@ -85,6 +106,7 @@ COPY examples examples
 
 # Create PHP-WASM
 RUN mkdir -p /build && \
+	DAT=$(ls /local/install/share/icu/*/icudt*.dat) && \
 	emcc -o /build/php-web.mjs \
 	-O2 --llvm-lto 2 \
 	-s EXPORTED_FUNCTIONS='["_phpw", "_phpw_flush", "_phpw_exec", "_phpw_run", "_chdir", "_setenv", "_php_embed_init", "_php_embed_shutdown", "_zend_eval_string"]' \
@@ -94,12 +116,18 @@ RUN mkdir -p /build && \
 	-s ASSERTIONS=0 -s ERROR_ON_UNDEFINED_SYMBOLS=0 -s MODULARIZE=1 -s INVOKE_RUN=0 -s LZ4=1 -s EXPORT_ES6=1 \
 	-s EXPORT_NAME=createPhpModule \
 	--embed-file examples \
+	--embed-file ${DAT}@/icu/$(basename ${DAT}) \
 	phpw.o php-src/.libs/libphp.a \
 	/local/install/lib/libxml2.a \
 	/local/install/lib/libonig.a \
+	/local/install/lib/libicui18n.a \
+	/local/install/lib/libicuio.a \
+	/local/install/lib/libicuuc.a \
+	/local/install/lib/libicudata.a \
 	php-src/.libs/libphp.a
 
 RUN mkdir -p /build && \
+	DAT=$(ls /local/install/share/icu/*/icudt*.dat) && \
 	emcc -o /build/php-cli.mjs \
 	-O2 --llvm-lto 2 \
 	-s EXPORTED_FUNCTIONS='["_phpw", "_phpw_flush", "_phpw_exec", "_phpw_run", "_chdir", "_setenv", "_php_embed_init", "_php_embed_shutdown", "_zend_eval_string"]' \
@@ -109,9 +137,14 @@ RUN mkdir -p /build && \
 	-s ASSERTIONS=0 -s ERROR_ON_UNDEFINED_SYMBOLS=0 -s MODULARIZE=1 -s INVOKE_RUN=0 -s LZ4=1 -s EXPORT_ES6=1 \
 	-s EXPORT_NAME=createPhpModule \
 	--embed-file examples \
+	--embed-file ${DAT}@/icu/$(basename ${DAT}) \
 	phpw.o php-src/.libs/libphp.a \
 	/local/install/lib/libxml2.a \
 	/local/install/lib/libonig.a \
+	/local/install/lib/libicui18n.a \
+	/local/install/lib/libicuio.a \
+	/local/install/lib/libicuuc.a \
+	/local/install/lib/libicudata.a \
 	php-src/.libs/libphp.a
 
 # Save file

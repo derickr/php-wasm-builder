@@ -32,6 +32,10 @@ ONIGURUMA_VERSION
 	The Oniguruma library (used for regular expressions with mbstring) version
 	to download and build.
 
+ICU_VERSION
+	The ICU library (used by the intl extension) version to download and build.
+	This uses ICU's release tag format, for example ``74-2``.
+
 Supported Extensions
 --------------------
 
@@ -41,6 +45,7 @@ Supported Extensions
 - date
 - dom
 - hash
+- intl
 - json
 - libxml
 - mbstring
