@@ -52,3 +52,10 @@ Supported Extensions
 - standard
 - xml
 - xmlreader
+
+Limitations
+-----------
+
+- Fibers
+    WebAssembly cannot pause and resume code the way Fibers require, so the
+    build uses ``--disable-fiber-asm``.
