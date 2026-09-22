@@ -30,6 +30,7 @@
 
 int main(int argc, char **argv)
 {
+	setenv("ICU_DATA", "/icu", 1);
 	php_embed_init(0, NULL);
 
 	zend_file_handle file_handle;
@@ -53,6 +54,7 @@ void phpw_flush()
 char *EMSCRIPTEN_KEEPALIVE phpw_exec(char *code)
 {
 	setenv("USE_ZEND_ALLOC", "0", 1);
+	setenv("ICU_DATA", "/icu", 1);
 	php_embed_init(0, NULL);
 	char *retVal = NULL;
 
@@ -76,6 +78,7 @@ char *EMSCRIPTEN_KEEPALIVE phpw_exec(char *code)
 void EMSCRIPTEN_KEEPALIVE phpw_run(char *code)
 {
 	setenv("USE_ZEND_ALLOC", "0", 1);
+	setenv("ICU_DATA", "/icu", 1);
 	php_embed_init(0, NULL);
 	PG(during_request_startup) = 0;
 
@@ -98,6 +101,7 @@ int EMBED_SHUTDOWN = 1;
 void phpw(char *file)
 {
 	setenv("USE_ZEND_ALLOC", "0", 1);
+	setenv("ICU_DATA", "/icu", 1);
 	if (EMBED_SHUTDOWN == 0) {
 		php_embed_shutdown();
 	}
