@@ -1,0 +1,96 @@
+name: Build
+
+# Builds the php.net stack on every pull request that can change it, and checks
+# that it works. Run the workflow by hand to do the same for every stack.
+
+on:
+  pull_request:
+    paths:
+      - Dockerfile
+      - docker-bake.hcl
+      - phpw.c
+      - castor.php
+      - stacks.php
+      - .castor/**
+      - demo/**
+      - examples/**
+      - playground/**
+      - .github/workflows/build.yml
+  workflow_dispatch:
+    inputs:
+      all:
+        description: Build and check every stack, not only php.net
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: docker/setup-buildx-action@v4
+
+      - uses: castor-php/setup-castor@v1
+
+      # Builds the stacks, then checks from node that the PHP version and the
+      # extensions are the ones that were asked for
+      - name: Test
+        env:
+          ALL: ${{ inputs.all }}
+        run: |
+          if [ "$ALL" = "true" ]; then
+            castor test
+          else
+            castor test php.net
+          fi
+
+      - name: Sizes
+        run: |
+          {
+            echo '<!-- php-wasm-builder-sizes -->'
+            echo '### Sizes'
+            echo
+            echo '```'
+            castor --no-ansi sizes
+            echo '```'
+          } | tee "$RUNNER_TEMP/sizes.md" >> "$GITHUB_STEP_SUMMARY"
+
+      # The token of a pull request from a fork can not write
+      - name: Comment the sizes
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const fs = require('fs');
+            const body = fs.readFileSync(`${process.env.RUNNER_TEMP}/sizes.md`, 'utf8');
+            const marker = body.split('\n')[0];
+            const { owner, repo } = context.repo;
+            const issue_number = context.issue.number;
+
+            const comments = await github.paginate(github.rest.issues.listComments, { owner, repo, issue_number });
+            const previous = comments.find((comment) => comment.body.startsWith(marker));
+
+            if (previous) {
+              await github.rest.issues.updateComment({ owner, repo, comment_id: previous.id, body });
+            } else {
+              await github.rest.issues.createComment({ owner, repo, issue_number, body });
+            }
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: php-wasm
+          path: |
+            build/*/php-*.mjs
+            build/*/php-*.wasm
