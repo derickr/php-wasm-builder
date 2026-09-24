@@ -101,3 +101,104 @@ Limitations
 - Fibers
     WebAssembly cannot pause and resume code the way Fibers require, so the
     build uses ``--disable-fiber-asm``.
+
+Stacks, and castor
+------------------
+
+A *stack* is a PHP version, a set of extensions, what to embed and which
+targets to build, with a name. The stacks are declared in ``stacks.php``, and
+`castor <https://castor.jolicode.com>`_ builds them with one command; castor
+only runs ``docker buildx bake`` for you, the Dockerfile is what knows how to
+compile PHP. Nobody needs castor to use this repository, and no PHP is needed
+on the host: only Docker (and node, to run what is built).
+
+.. code-block:: php
+
+	<?php
+
+	use PhpWasm\Stack;
+
+	return [
+	    Stack::named('php.net')
+	        ->php('8.4.26')
+	        ->extensions('calendar', 'ctype', 'dom', 'mbstring', 'simplexml', 'xml', 'xmlreader', 'xmlwriter')
+	        ->embed('examples')
+	        ->targets('web', 'node'),
+
+	    // Inherits everything from php.net, and adds two extensions
+	    Stack::named('php.net-bcmath')->from('php.net')->extensions('bcmath', 'tokenizer'),
+	];
+
+A stack that inherits from another one with ``from()`` gets whatever it does
+not declare from it. The extensions it declares are added to the ones of its
+parent, the rest replaces what the parent says. ``embed()`` is relative to the
+directory of the ``stacks.php`` file.
+
+Everything is built in ``build/<stack>/``::
+
+	castor stacks                         # lists the stacks
+	castor build                          # builds the php.net stack
+	castor build playground               # builds another one
+	castor build --all                    # builds all of them, in one buildx invocation
+	castor test                           # builds them all, and checks them
+	castor sizes                          # compares the size of the .wasm files with php.net's
+	castor run demo/phpinfo.php           # runs a file, with the php.net stack
+	castor run -r 'echo PHP_VERSION;' --stack playground
+
+Anything in a stack can be overridden from the command line, so there is no
+need to declare a stack to try something::
+
+	castor build --php 8.3.35                      # the php.net stack, on PHP 8.3
+	castor build playground --target node          # only the node target
+	castor build --with tokenizer --with bcmath    # php.net, and two more extensions
+	castor build --memory 256mb --embed my-app     # more memory, another directory to embed
+	castor build --print                           # only shows the bake file
+
+``castor test`` is what tells that a stack works: once built, it runs each
+stack in node, and checks that ``PHP_VERSION`` is the one that was asked for,
+and that ``extension_loaded()`` is true for every extension that was asked for.
+
+Using it from your own project
+------------------------------
+
+The Dockerfile knows which emsdk works, how to cross-compile oniguruma and
+libxml2, which ``./configure`` flags PHP needs to link and which ``emcc``
+flags make it load. Any PHP project can reuse that, instead of copying the
+Dockerfile, by importing this repository as a castor package::
+
+	castor composer require derickr/php-wasm-builder
+
+.. code-block:: php
+
+	<?php
+	// castor.php
+
+	use function Castor\import;
+
+	defined('CASTOR_USE_CHDIR') || define('CASTOR_USE_CHDIR', false);
+
+	import('composer://derickr/php-wasm-builder');
+
+Then declare your stacks, with the same format, in a ``stacks.php`` file next
+to ``castor.php``. The stacks of this repository are there to inherit from:
+
+.. code-block:: php
+
+	<?php
+	// stacks.php
+
+	use PhpWasm\Stack;
+
+	return [
+	    Stack::named('my-app')
+	        ->from('php.net')
+	        ->php('8.5.11')
+	        ->extensions('tokenizer', 'bcmath')
+	        ->embed('dist'),    // relative to your project
+	];
+
+``castor build my-app`` then builds it in the ``build/my-app/`` directory of
+your project. Use ``mount('composer://derickr/php-wasm-builder', 'wasm')``
+instead of ``import()`` to get the tasks under a ``wasm:`` prefix
+(``castor wasm:build``), if ``build``, ``run`` or ``test`` are already tasks of
+your project.
