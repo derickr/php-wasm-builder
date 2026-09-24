@@ -1,0 +1,15 @@
+{
+    "name": "derickr/php-wasm-builder",
+    "description": "Builds PHP as WebAssembly: a Dockerfile, and castor tasks to build named stacks (a PHP version, extensions, what to embed) with one command",
+    "type": "library",
+    "license": "MIT",
+    "keywords": ["php", "wasm", "webassembly", "emscripten", "castor"],
+    "require": {
+        "php": ">=8.2"
+    },
+    "autoload": {
+        "psr-4": {
+            "PhpWasm\\": ".castor/"
+        }
+    }
+}
