@@ -69,7 +69,7 @@ RUN cd php-src && \
 	emconfigure ./configure --host=$(emcc -dumpmachine) --enable-embed=static \
 	--disable-all --without-pcre-jit --disable-fiber-asm --disable-cgi --disable-cli --disable-phpdbg \
 	--with-libxml --enable-simplexml --enable-xml --enable-xmlreader --enable-xmlwriter --enable-dom \
-	--enable-mbstring \
+	--enable-mbstring --enable-tokenizer \
 	--enable-calendar --enable-ctype
 
 # Compile WASM shim

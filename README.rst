@@ -50,6 +50,7 @@ Supported Extensions
 - SimpleXML
 - SPL
 - standard
+- tokenizer
 - xml
 - xmlreader
 
