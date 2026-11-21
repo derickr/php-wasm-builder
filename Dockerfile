@@ -67,7 +67,7 @@ ENV LIBXML_CFLAGS="-I/local/install/include/libxml2"
 # Configure PHP
 RUN cd php-src && \
 	emconfigure ./configure --host=$(emcc -dumpmachine) --enable-embed=static \
-	--disable-all --without-pcre-jit --disable-fiber-asm --disable-cgi --disable-cli --disable-phpdbg \
+	--disable-all --without-pcre-jit --disable-fiber-asm --disable-cgi --disable-phpdbg \
 	--with-libxml --enable-simplexml --enable-xml --enable-xmlreader --enable-xmlwriter --enable-dom \
 	--enable-mbstring --enable-tokenizer \
 	--enable-calendar --enable-ctype
@@ -79,7 +79,7 @@ RUN \
 # Compile PHP
 RUN \
 	cd php-src && \
-	emmake make -j`nproc`
+	emmake make -j`nproc` libphp.la
 
 COPY examples examples
 
